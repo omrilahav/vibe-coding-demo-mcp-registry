@@ -39,16 +39,24 @@ Before you begin, ensure you have the following installed:
 
 ### Starting the Development Server
 
-1. Start the development server:
+1. Start the backend server:
+   ```bash
+   node server.js
+   ```
+   This will start the backend server on port 3001.
+
+2. In a separate terminal, start the frontend development server:
    ```bash
    npm run dev
    ```
-   This will:
-   - Start the Electron app
-   - Launch the React development server
-   - Watch for file changes
+   This will start the React application on port 5173.
 
-2. The app will open automatically. Any changes you make to the code will trigger hot reload.
+3. Access the application in your browser at `http://localhost:5173`
+
+Alternatively, you can use the combined script:
+   ```bash
+   npm run start-dev
+   ```
 
 ### Project Structure
 
