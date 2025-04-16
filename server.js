@@ -368,6 +368,120 @@ app.post('/api/contributions', async (req, res) => {
   }
 });
 
+// Get server feedback endpoint
+app.get('/api/servers/:id/feedback', async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    console.log(`GET /api/servers/${serverId}/feedback - Fetching feedback`);
+    
+    // Check if server exists
+    const server = await prisma.mCPServer.findUnique({
+      where: { id: serverId }
+    });
+    
+    if (!server) {
+      return res.status(404).json({ status: 'error', message: 'Server not found' });
+    }
+    
+    // Get feedback from UserContribution table
+    const feedbackContributions = await prisma.userContribution.findMany({
+      where: {
+        serverId: serverId,
+        contributionType: 'feedback',
+        status: 'approved'
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    // Format the feedback data
+    const feedbackData = feedbackContributions.map(contribution => {
+      let parsedContent = {};
+      try {
+        if (contribution.content.startsWith('{')) {
+          parsedContent = JSON.parse(contribution.content);
+        } else {
+          parsedContent = { comment: contribution.content };
+        }
+      } catch (e) {
+        console.error('Error parsing feedback content:', e);
+        parsedContent = { comment: contribution.content };
+      }
+      
+      return {
+        id: contribution.id,
+        userName: contribution.submitterName || 'Anonymous',
+        rating: parsedContent.rating || 5,
+        comment: parsedContent.comment || contribution.content,
+        date: contribution.createdAt.toISOString().split('T')[0]
+      };
+    });
+    
+    res.json({ status: 'ok', data: feedbackData });
+  } catch (error) {
+    console.error('Error fetching feedback:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch feedback' });
+  }
+});
+
+// Submit server feedback endpoint
+app.post('/api/servers/:id/feedback', async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    console.log(`POST /api/servers/${serverId}/feedback - Submitting feedback:`, req.body);
+    
+    const { userName, rating, comment } = req.body;
+    
+    // Validate required fields
+    if (!userName || rating === undefined || !comment) {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'Missing required fields. Please provide userName, rating, and comment.' 
+      });
+    }
+    
+    // Check if server exists
+    const server = await prisma.mCPServer.findUnique({
+      where: { id: serverId }
+    });
+    
+    if (!server) {
+      return res.status(404).json({ status: 'error', message: 'Server not found' });
+    }
+
+    // Store feedback as a UserContribution
+    const userContribution = await prisma.userContribution.create({
+      data: {
+        serverId: serverId,
+        contributionType: 'feedback',
+        content: JSON.stringify({
+          rating: rating,
+          comment: comment
+        }),
+        submitterName: userName,
+        status: 'approved' // Auto-approve feedback for now
+      }
+    });
+    
+    // Return success response with the created feedback
+    res.status(201).json({ 
+      status: 'success', 
+      message: 'Feedback submitted successfully.',
+      data: {
+        id: userContribution.id,
+        userName: userName,
+        rating: rating,
+        comment: comment,
+        date: new Date().toISOString().split('T')[0]
+      }
+    });
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to submit feedback. Please try again.' });
+  }
+});
+
 // Serve a simple HTML page for root with automatic redirect
 app.get('/', (req, res) => {
   res.send(`

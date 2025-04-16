@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { 
   Box, Typography, Paper, Grid, Tabs, Tab, Button, 
   List, ListItem, ListItemText, Divider, TextField, 
-  Rating, Avatar, Chip, CircularProgress
+  Rating, Avatar, Chip, CircularProgress, Alert
 } from '@mui/material';
 import {
   GitHub as GitHubIcon,
@@ -86,6 +86,7 @@ const ServerDetailPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [tabValue, setTabValue] = useState(0);
   
   // Feedback form state
@@ -158,7 +159,28 @@ const ServerDetailPage: React.FC = () => {
     
     if (!id) return;
     
+    // Validate fields
+    if (!userFeedback.userName.trim()) {
+      setError('Please enter your name');
+      setSuccess(null);
+      return;
+    }
+    
+    if (userFeedback.rating === 0) {
+      setError('Please select a rating');
+      setSuccess(null);
+      return;
+    }
+    
+    if (!userFeedback.comment.trim()) {
+      setError('Please enter your feedback');
+      setSuccess(null);
+      return;
+    }
+    
     try {
+      setError(null);
+      setSuccess(null);
       setIsSubmitting(true);
       
       const response = await submitServerFeedback(id, {
@@ -168,18 +190,25 @@ const ServerDetailPage: React.FC = () => {
       });
       
       // Add the new feedback to the list
-      setFeedback([response.data, ...feedback]);
+      if (response && response.data) {
+        setFeedback([response.data, ...feedback]);
+        
+        // Reset form
+        setUserFeedback({
+          userName: '',
+          rating: 0,
+          comment: ''
+        });
+        
+        setSuccess('Thank you for your feedback!');
+      } else {
+        setError('Failed to submit feedback. Please try again.');
+      }
       
-      // Reset form
-      setUserFeedback({
-        userName: '',
-        rating: 0,
-        comment: ''
-      });
-      
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting feedback:', err);
-      alert('Failed to submit feedback. Please try again.');
+      setError(err.message || 'Failed to submit feedback. Please try again.');
+      setSuccess(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -400,6 +429,24 @@ const ServerDetailPage: React.FC = () => {
               </Typography>
               <Paper sx={{ p: 2 }}>
                 <form onSubmit={handleSubmitFeedback}>
+                  {error && (
+                    <Alert 
+                      severity="error" 
+                      sx={{ mb: 2 }}
+                      onClose={() => setError(null)}
+                    >
+                      {error}
+                    </Alert>
+                  )}
+                  {success && (
+                    <Alert 
+                      severity="success" 
+                      sx={{ mb: 2 }}
+                      onClose={() => setSuccess(null)}
+                    >
+                      {success}
+                    </Alert>
+                  )}
                   <TextField
                     fullWidth
                     margin="normal"

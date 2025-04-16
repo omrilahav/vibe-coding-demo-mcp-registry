@@ -13,7 +13,10 @@ const dataCollectionService = new DataCollectionService();
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'] })); // Add CORS middleware with specific origins
+app.use(cors({ 
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://127.0.0.1:5173'],
+  credentials: true
+})); // Add CORS middleware with allowed origins
 
 // API Routes
 app.get('/api/health', (req, res) => {
@@ -327,48 +330,51 @@ app.get('/api/servers/:id/reputation', async (req, res) => {
   }
 });
 
-// Mock endpoint for server feedback
+// Endpoint for server feedback from the database
 app.get('/api/servers/:id/feedback', async (req, res) => {
   try {
+    const prisma = new PrismaClient();
     const serverId = req.params.id;
     
-    // Simple mock feedback data
-    const mockFeedbackData: Record<string, any> = {
-      "1": [
-        {
-          id: "f1",
-          userName: "AI Developer",
-          rating: 5,
-          comment: "This MCP server is excellent! It provides exactly what I need for secure file access.",
-          date: "2023-03-20"
-        },
-        {
-          id: "f2",
-          userName: "Data Scientist",
-          rating: 4,
-          comment: "Works great for most of my use cases, but could use better documentation for advanced features.",
-          date: "2023-02-15"
-        }
-      ],
-      "2": [
-        {
-          id: "f3",
-          userName: "Backend Engineer",
-          rating: 5,
-          comment: "Fantastic integration with multiple database systems. The connection pooling is very efficient.",
-          date: "2023-03-10"
-        },
-        {
-          id: "f4",
-          userName: "Full Stack Developer",
-          rating: 4,
-          comment: "Great for common queries, but could use more examples for complex joins and transactions.",
-          date: "2023-02-28"
-        }
-      ]
-    };
+    // Check if server exists
+    const server = await prisma.mCPServer.findUnique({
+      where: { id: serverId }
+    });
     
-    const feedbackData = mockFeedbackData[serverId] || [];
+    if (!server) {
+      return res.status(404).json({ status: 'error', message: 'Server not found' });
+    }
+    
+    // Get feedback from UserContribution table
+    const feedbackContributions = await prisma.userContribution.findMany({
+      where: {
+        serverId: serverId,
+        contributionType: 'feedback',
+        status: 'approved'
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    // Format feedback data
+    const feedbackData = feedbackContributions.map(contribution => {
+      // Parse the content JSON
+      let parsedContent;
+      try {
+        parsedContent = JSON.parse(contribution.content);
+      } catch (e) {
+        parsedContent = { rating: 0, comment: "Error parsing feedback", date: contribution.createdAt.toISOString().split('T')[0] };
+      }
+      
+      return {
+        id: contribution.id,
+        userName: contribution.submitterName || "Anonymous",
+        rating: parsedContent.rating || 0,
+        comment: parsedContent.comment || "",
+        date: parsedContent.date || contribution.createdAt.toISOString().split('T')[0]
+      };
+    });
     
     res.json({ status: 'ok', data: feedbackData });
   } catch (error) {
@@ -380,6 +386,7 @@ app.get('/api/servers/:id/feedback', async (req, res) => {
 // Mock endpoint for submitting server feedback
 app.post('/api/servers/:id/feedback', async (req, res) => {
   try {
+    const prisma = new PrismaClient();
     const serverId = req.params.id;
     const feedback = req.body;
     
@@ -391,23 +398,45 @@ app.post('/api/servers/:id/feedback', async (req, res) => {
       });
     }
     
-    // Log the feedback (for demonstration purposes)
-    console.log(`Received feedback for server ${serverId}:`, feedback);
+    // Check if server exists
+    const server = await prisma.mCPServer.findUnique({
+      where: { id: serverId }
+    });
     
-    // In a real implementation, we would save to the database here
+    if (!server) {
+      return res.status(404).json({ status: 'error', message: 'Server not found' });
+    }
+
+    // Store feedback as a UserContribution
+    const userContribution = await prisma.userContribution.create({
+      data: {
+        serverId: serverId,
+        contributionType: 'feedback',
+        content: JSON.stringify({
+          rating: feedback.rating,
+          comment: feedback.comment,
+          date: new Date().toISOString().split('T')[0]
+        }),
+        submitterName: feedback.userName,
+        status: 'approved' // Auto-approve feedback for now
+      }
+    });
+    
     // Return success response with the created feedback
     res.status(201).json({ 
       status: 'success', 
       message: 'Feedback submitted successfully.',
       data: {
-        id: 'f' + Date.now(),
-        ...feedback,
+        id: userContribution.id,
+        userName: feedback.userName,
+        rating: feedback.rating,
+        comment: feedback.comment,
         date: new Date().toISOString().split('T')[0]
       }
     });
   } catch (error) {
     console.error('Error submitting feedback:', error);
-    res.status(500).json({ status: 'error', message: 'Failed to submit feedback' });
+    res.status(500).json({ status: 'error', message: 'Failed to submit feedback. Please try again.' });
   }
 });
 
