@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// MCP Server - Core entity for MCP server information
+model MCPServer {
+  id                 String              @id @default(uuid())
+  name               String
+  description        String?
+  url                String
+  repositoryUrl      String?
+  license            String?
+  owner              String?
+  ownerType          String?             // e.g., "individual", "organization", "company"
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  lastScannedAt      DateTime?
+  isActive           Boolean             @default(true)
+  isVerified         Boolean             @default(false)
+
+  // Relations
+  reputationScores   ReputationScore[]
+  categories         CategoryToServer[]
+  userContributions  UserContribution[]
+  capabilities       Capability[]
+}
+
+// Reputation Score - Tracks server reputation with component scores
+model ReputationScore {
+  id                 String    @id @default(uuid())
+  serverId           String
+  overallScore       Float
+  maintenanceScore   Float?    // How well maintained the server is
+  communityScore     Float?    // Community engagement and adoption
+  stabilityScore     Float?    // Release stability and versioning
+  documentationScore Float?    // Quality of documentation
+  securityScore      Float?    // Security considerations
+  calculatedAt       DateTime  @default(now())
+  
+  // Relations
+  server             MCPServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  
+  @@index([serverId, calculatedAt])
+}
+
+// Data Source - Tracks external data sources
+model DataSource {
+  id               String    @id @default(uuid())
+  name             String    @unique
+  sourceType       String    // "github", "glama.ai", etc.
+  baseUrl          String?
+  apiKey           String?
+  lastFetchedAt    DateTime?
+  status           String    @default("active") // "active", "disabled", "error"
+  errorMessage     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+// User Contribution - Tracks user submissions and feedback
+model UserContribution {
+  id               String    @id @default(uuid())
+  serverId         String?
+  contributionType String    // "new_server", "feedback", "update"
+  content          String
+  submitterName    String?
+  submitterEmail   String?
+  status           String    @default("pending") // "pending", "approved", "rejected"
+  reviewMessage    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  // Relations
+  server           MCPServer? @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  
+  @@index([serverId, status])
+}
+
+// Category - Defines categories for MCP servers
+model Category {
+  id               String              @id @default(uuid())
+  name             String              @unique
+  description      String?
+  parentId         String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  // Relations
+  parent           Category?           @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children         Category[]          @relation("CategoryHierarchy")
+  servers          CategoryToServer[]
+  
+  @@index([parentId])
+}
+
+// CategoryToServer - Junction table for many-to-many relationship
+model CategoryToServer {
+  serverId         String
+  categoryId       String
+  createdAt        DateTime            @default(now())
+  
+  // Relations
+  server           MCPServer           @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  category         Category            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  @@id([serverId, categoryId])
+  @@index([categoryId])
+  @@index([serverId])
+}
+
+// Capability - Specific capabilities of an MCP server
+model Capability {
+  id               String              @id @default(uuid())
+  name             String
+  description      String?
+  serverId         String
+  details          String?             // JSON string with capability details
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  // Relations
+  server           MCPServer           @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  
+  @@index([serverId])
+} 
