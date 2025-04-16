@@ -107,6 +107,32 @@ This guide helps you diagnose and fix common issues with MCP Registry.
    - Re-authenticate
    - Restart sync process
 
+### Glama API Connection Issues
+
+#### Symptoms
+- "Failed to load server data" error when clicking "Load Latest Servers" on homepage
+- No new servers appear after clicking "Load Latest Servers"
+- Error notifications when trying to fetch external data
+
+#### Cause
+There is a known issue with the Glama.ai API connection. The application is designed to fetch MCP server data from this external source, but there are connectivity problems with the API endpoint.
+
+#### Solutions
+
+1. **Use Local Data**
+   - The application contains pre-loaded mock data and locally submitted servers
+   - You can still use all features with the available local data
+   - Submit new servers manually using the "Submit Server" page
+
+2. **Try Again Later**
+   - The external API may be temporarily unavailable
+   - Try the "Load Latest Servers" button again at a later time
+
+3. **Upcoming Fixes**
+   - Future versions will implement additional data sources
+   - More robust error handling for external API dependencies will be added
+   - Check for application updates to get the latest fixes
+
 ## Data Issues
 
 ### Missing or Corrupt Data

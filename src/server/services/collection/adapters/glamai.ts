@@ -1,11 +1,10 @@
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import axios, { AxiosResponse } from 'axios';
 // @ts-ignore - Import PrismaClient directly from .prisma/client
 import { PrismaClient } from '.prisma/client';
 import { SourceAdapter, MCPServerData } from '../types';
 
 export class GlamaAdapter implements SourceAdapter {
-  private baseUrl = 'https://glama.ai/mcp-directory'; // Example URL
+  private baseUrl = 'https://glama.ai/api/mcp/v1/servers';
   private prisma: PrismaClient;
   private dataSourceId?: string;
 
@@ -19,47 +18,82 @@ export class GlamaAdapter implements SourceAdapter {
 
   async collect(): Promise<MCPServerData[]> {
     const results: MCPServerData[] = [];
+    let hasNextPage = true;
+    let endCursor: string | null = null;
+    const fetchLimit = 20; // Number of servers to fetch per request
+    let fetchCount = 0;
+    const maxFetches = 3; // Limit number of API calls to avoid rate limiting
     
     try {
-      // Fetch the directory page
-      const response = await axios.get(this.baseUrl);
-      const $ = cheerio.load(response.data);
-      
-      // Select all server cards/entries
-      $('.server-card').each((_, element) => {
-        // Simple scraping implementation
-        const name = $(element).find('.server-name').text().trim();
-        const description = $(element).find('.server-description').text().trim();
-        const url = $(element).find('.server-url').attr('href') || '';
-        const repoUrl = $(element).find('.repo-url').attr('href');
+      while (hasNextPage && fetchCount < maxFetches) {
+        fetchCount++;
+        // Construct URL with pagination
+        const url = endCursor 
+          ? `${this.baseUrl}?first=${fetchLimit}&after=${encodeURIComponent(endCursor)}`
+          : `${this.baseUrl}?first=${fetchLimit}`;
         
-        // Extract categories
-        const categories: string[] = [];
-        $(element).find('.category-tag').each((_, categoryEl) => {
-          categories.push($(categoryEl).text().trim());
-        });
+        console.log(`Fetching MCP servers from ${url}`);
+        const response: AxiosResponse<any> = await axios.get(url);
+        const data = response.data;
         
-        // Extract capabilities
-        const capabilities: MCPServerData['capabilities'] = [];
-        $(element).find('.capability-item').each((_, capEl) => {
-          capabilities.push({
-            name: $(capEl).find('.capability-name').text().trim(),
-            description: $(capEl).find('.capability-description').text().trim(),
-          });
-        });
-        
-        if (name && url) {
-          results.push({
-            name,
-            description,
-            url,
-            repositoryUrl: repoUrl,
-            categories,
-            capabilities,
-          });
+        // Validate response structure
+        if (!data || !data.servers || !Array.isArray(data.servers)) {
+          console.error('Unexpected API response format:', JSON.stringify(data).substring(0, 200));
+          break;
         }
-      });
+        
+        console.log(`Retrieved ${data.servers.length} servers from Glama API`);
+        
+        // Process server data
+        for (const server of data.servers) {
+          try {
+            // Map server data to our format
+            const serverData: MCPServerData = {
+              name: server.name || '',
+              description: server.description || '',
+              url: server.url || '',
+              repositoryUrl: server.repository?.url || '',
+              license: server.spdxLicense?.name || '',
+              owner: '', // Not directly provided in the API
+              ownerType: '', // Not directly provided in the API
+              categories: [],
+              capabilities: []
+            };
+            
+            // Extract attributes as categories if available
+            if (Array.isArray(server.attributes)) {
+              serverData.categories = server.attributes;
+            }
+            
+            // Add tools as capabilities if available
+            if (Array.isArray(server.tools)) {
+              serverData.capabilities = server.tools.map((tool: any) => ({
+                name: tool.name || '',
+                description: tool.description || '',
+                details: tool
+              }));
+            }
+            
+            // Only add valid servers
+            if (serverData.name && serverData.url) {
+              results.push(serverData);
+            }
+          } catch (err) {
+            console.error('Error processing server:', err);
+          }
+        }
+        
+        // Check for pagination
+        if (data.pageInfo && data.pageInfo.hasNextPage && data.pageInfo.endCursor) {
+          hasNextPage = data.pageInfo.hasNextPage;
+          endCursor = data.pageInfo.endCursor;
+          console.log(`More data available, next cursor: ${endCursor?.substring(0, 20) || ''}...`);
+        } else {
+          hasNextPage = false;
+        }
+      }
       
+      console.log(`Successfully collected ${results.length} MCP servers from Glama.ai`);
       return results;
     } catch (error) {
       console.error('Error in Glama.ai collection:', error);
@@ -79,7 +113,7 @@ export class GlamaAdapter implements SourceAdapter {
         },
         create: {
           name: this.getName(),
-          sourceType: 'web_scraping',
+          sourceType: 'api',
           baseUrl: this.baseUrl,
           status: 'active',
         }

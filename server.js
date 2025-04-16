@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { PrismaClient } from '@prisma/client';
+import axios from 'axios';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -459,6 +460,248 @@ app.get('/', (req, res) => {
       </body>
     </html>
   `);
+});
+
+// Add an endpoint to fetch servers from real sources
+app.post('/api/load-servers', async (req, res) => {
+  try {
+    console.log('Triggering MCP servers data collection from Glama API...');
+    
+    // Fetch servers directly from Glama API
+    const fetchFromGlamaApi = async () => {
+      let url = 'https://glama.ai/api/mcp/v1/servers?first=20';
+      
+      // If we have a saved endCursor, use it for pagination
+      try {
+        const lastDataSource = await prisma.dataSource.findFirst({
+          where: { name: 'glama.ai' },
+          orderBy: { lastFetchedAt: 'desc' }
+        });
+        
+        if (lastDataSource && lastDataSource.metadata) {
+          // Try to parse metadata for cursor
+          const metadata = JSON.parse(lastDataSource.metadata);
+          if (metadata.endCursor) {
+            url = `https://glama.ai/api/mcp/v1/servers?first=20&after=${encodeURIComponent(metadata.endCursor)}`;
+            console.log(`Using saved cursor for pagination: ${metadata.endCursor.substring(0, 20)}...`);
+          }
+        }
+      } catch (err) {
+        console.error('Error getting last cursor:', err);
+        // Continue with default URL if there's an error
+      }
+      
+      console.log(`Fetching from Glama API: ${url}`);
+      
+      const response = await axios.get(url);
+      const data = response.data;
+      
+      // Validate response structure
+      if (!data || !data.servers || !Array.isArray(data.servers)) {
+        throw new Error('Unexpected API response format');
+      }
+      
+      console.log(`Retrieved ${data.servers.length} servers from Glama API`);
+      
+      // Save the endCursor for next pagination if available
+      if (data.pageInfo && data.pageInfo.endCursor) {
+        try {
+          await prisma.dataSource.upsert({
+            where: { name: 'glama.ai' },
+            update: { 
+              lastFetchedAt: new Date(),
+              status: 'active',
+              metadata: JSON.stringify({
+                endCursor: data.pageInfo.endCursor,
+                hasNextPage: data.pageInfo.hasNextPage
+              })
+            },
+            create: {
+              name: 'glama.ai',
+              sourceType: 'api',
+              baseUrl: 'https://glama.ai/api/mcp/v1/servers',
+              status: 'active',
+              metadata: JSON.stringify({
+                endCursor: data.pageInfo.endCursor,
+                hasNextPage: data.pageInfo.hasNextPage
+              })
+            }
+          });
+          console.log(`Saved endCursor for next pagination: ${data.pageInfo.endCursor.substring(0, 20)}...`);
+        } catch (err) {
+          console.error('Error saving cursor:', err);
+        }
+      }
+      
+      return data.servers;
+    };
+    
+    // Store servers in the database
+    const storeServers = async (servers) => {
+      const results = [];
+      
+      for (const server of servers) {
+        try {
+          // Map server data to our database schema
+          const serverData = {
+            name: server.name || '',
+            description: server.description || '',
+            url: server.url || '',
+            repositoryUrl: server.repository?.url || '',
+            license: server.spdxLicense?.name || '',
+            owner: 'Glama AI',
+            isActive: true,
+            isVerified: true
+          };
+          
+          // Only process servers with required fields
+          if (!serverData.name || !serverData.url) {
+            continue;
+          }
+          
+          // Create or update server
+          const existingServer = await prisma.mCPServer.findFirst({
+            where: { url: serverData.url }
+          });
+          
+          let dbServer;
+          if (existingServer) {
+            // Update existing server
+            dbServer = await prisma.mCPServer.update({
+              where: { id: existingServer.id },
+              data: serverData
+            });
+            console.log(`Updated server: ${dbServer.name}`);
+          } else {
+            // Create new server
+            dbServer = await prisma.mCPServer.create({
+              data: serverData
+            });
+            console.log(`Created server: ${dbServer.name}`);
+          }
+          
+          // Process categories from attributes
+          if (Array.isArray(server.attributes) && server.attributes.length > 0) {
+            for (const attrName of server.attributes) {
+              // Find or create the category
+              let category = await prisma.category.findFirst({
+                where: { name: attrName }
+              });
+              
+              if (!category) {
+                category = await prisma.category.create({
+                  data: { name: attrName }
+                });
+              }
+              
+              // Check if relationship already exists
+              const existingRelation = await prisma.categoryToServer.findFirst({
+                where: {
+                  serverId: dbServer.id,
+                  categoryId: category.id
+                }
+              });
+              
+              // Create relationship if it doesn't exist
+              if (!existingRelation) {
+                await prisma.categoryToServer.create({
+                  data: {
+                    serverId: dbServer.id,
+                    categoryId: category.id
+                  }
+                });
+              }
+            }
+          }
+          
+          // Process capabilities from tools
+          if (Array.isArray(server.tools) && server.tools.length > 0) {
+            // First clean up existing capabilities
+            await prisma.capability.deleteMany({
+              where: { serverId: dbServer.id }
+            });
+            
+            // Add new capabilities
+            for (const tool of server.tools) {
+              await prisma.capability.create({
+                data: {
+                  serverId: dbServer.id,
+                  name: tool.name || 'Unnamed Tool',
+                  description: tool.description || '',
+                  details: JSON.stringify(tool)
+                }
+              });
+            }
+          }
+          
+          results.push(dbServer);
+        } catch (err) {
+          console.error(`Error processing server ${server.name}:`, err);
+        }
+      }
+      
+      return results;
+    };
+    
+    // Main process
+    try {
+      // Fetch from Glama
+      const servers = await fetchFromGlamaApi();
+      
+      // Store in DB
+      const storedServers = await storeServers(servers);
+      
+      // Get updated stats
+      const newTotal = await prisma.mCPServer.count();
+      
+      res.json({ 
+        status: 'success', 
+        message: `Successfully processed ${storedServers.length} MCP servers.`,
+        count: storedServers.length,
+        total: newTotal
+      });
+    } catch (error) {
+      console.error('Error in server collection process:', error);
+      res.status(500).json({ 
+        status: 'error', 
+        message: 'Failed to collect and store server data.' 
+      });
+    }
+  } catch (error) {
+    console.error('Error triggering data collection:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Failed to trigger server data collection.' 
+    });
+  }
+});
+
+// Add a test endpoint to directly access the Glama API
+app.get('/api/test-glama', async (req, res) => {
+  try {
+    console.log('Testing Glama API directly...');
+    
+    // Use the curl example provided in the requirements
+    const url = 'https://glama.ai/api/mcp/v1/servers?first=20';
+    console.log(`Fetching from: ${url}`);
+    
+    const response = await axios.get(url);
+    console.log('Response status:', response.status);
+    console.log('Response data sample:', JSON.stringify(response.data).substring(0, 500) + '...');
+    
+    res.json({ 
+      status: 'success', 
+      message: 'Direct API test completed',
+      data: response.data
+    });
+  } catch (error) {
+    console.error('Error testing Glama API directly:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Failed to test Glama API directly',
+      error: error.message || 'Unknown error'
+    });
+  }
 });
 
 // Start the server

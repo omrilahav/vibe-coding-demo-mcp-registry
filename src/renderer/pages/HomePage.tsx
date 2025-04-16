@@ -9,10 +9,13 @@ import {
   useTheme,
   useMediaQuery,
   Divider,
-  CircularProgress
+  CircularProgress,
+  Snackbar,
+  Alert,
+  Tooltip
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { getStats, getFeaturedServers, getCategories } from '../services/api';
+import { getStats, getFeaturedServers, getCategories, loadServersFromSources } from '../services/api';
 import ServerCard from '../components/ServerCard';
 import CategoryTag from '../components/CategoryTag';
 import SearchBar from '../components/SearchBar';
@@ -52,38 +55,86 @@ const HomePage: React.FC = () => {
     servers: true,
     categories: true
   });
+  const [isLoadingServers, setIsLoadingServers] = useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info' as 'info' | 'success' | 'error'
+  });
   const [error, setError] = useState<string | null>(null);
 
+  // Function to handle loading servers from sources
+  const handleLoadServers = async () => {
+    try {
+      setIsLoadingServers(true);
+      await loadServersFromSources();
+      setSnackbar({
+        open: true,
+        message: 'Server data collection has started. This may take a moment.',
+        severity: 'info'
+      });
+      
+      // Wait a bit and then refresh the data
+      setTimeout(async () => {
+        try {
+          await fetchData();
+          setSnackbar({
+            open: true,
+            message: 'Server data has been updated successfully!',
+            severity: 'success'
+          });
+        } catch (err) {
+          console.error('Error refreshing data:', err);
+        } finally {
+          setIsLoadingServers(false);
+        }
+      }, 3000);
+    } catch (err) {
+      console.error('Error loading servers:', err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load server data. Please try again.',
+        severity: 'error'
+      });
+      setIsLoadingServers(false);
+    }
+  };
+
+  const fetchData = async () => {
+    try {
+      // Fetch statistics
+      const statsData = await getStats();
+      setStats(statsData.data);
+      setLoading(prev => ({ ...prev, stats: false }));
+
+      // Fetch featured servers
+      const serversData = await getFeaturedServers(4);
+      setFeaturedServers(serversData);
+      setLoading(prev => ({ ...prev, servers: false }));
+
+      // Fetch categories
+      const categoriesData = await getCategories();
+      setCategories(categoriesData);
+      setLoading(prev => ({ ...prev, categories: false }));
+    } catch (err) {
+      console.error('Error fetching homepage data:', err);
+      setError('Failed to load homepage data. Please try again later.');
+      setLoading({
+        stats: false,
+        servers: false,
+        categories: false
+      });
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch statistics
-        const statsData = await getStats();
-        setStats(statsData.data);
-        setLoading(prev => ({ ...prev, stats: false }));
-
-        // Fetch featured servers
-        const serversData = await getFeaturedServers(4);
-        setFeaturedServers(serversData);
-        setLoading(prev => ({ ...prev, servers: false }));
-
-        // Fetch categories
-        const categoriesData = await getCategories();
-        setCategories(categoriesData);
-        setLoading(prev => ({ ...prev, categories: false }));
-      } catch (err) {
-        console.error('Error fetching homepage data:', err);
-        setError('Failed to load homepage data. Please try again later.');
-        setLoading({
-          stats: false,
-          servers: false,
-          categories: false
-        });
-      }
-    };
-
     fetchData();
   }, []);
+
+  // Handle snackbar close
+  const handleSnackbarClose = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
 
   // Handle search submit
   const handleSearch = (query: string) => {
@@ -97,6 +148,22 @@ const HomePage: React.FC = () => {
 
   return (
     <Box sx={{ pb: 8 }}>
+      {/* Snackbar for notifications */}
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={6000} 
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={handleSnackbarClose} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
       {/* Hero Section */}
       <Box 
         sx={{ 
@@ -156,21 +223,53 @@ const HomePage: React.FC = () => {
             />
           </Box>
           
-          <Button 
-            variant="contained" 
-            color="secondary" 
-            size="large" 
-            component={RouterLink} 
-            to="/servers"
-            sx={{ 
-              mt: 2,
-              fontWeight: 600,
-              px: 4,
-              py: 1.5
-            }}
-          >
-            Explore Servers
-          </Button>
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+            <Button 
+              variant="contained" 
+              color="secondary" 
+              size="large" 
+              component={RouterLink} 
+              to="/servers"
+              sx={{ 
+                fontWeight: 600,
+                px: 4,
+                py: 1.5
+              }}
+            >
+              Explore Servers
+            </Button>
+            
+            <Tooltip 
+              title="Note: There is a known issue with the Glama API connection. The application may be unable to fetch the latest server data from external sources."
+              arrow
+              placement="bottom"
+            >
+              <Button 
+                variant="outlined"
+                color="inherit"
+                size="large"
+                onClick={handleLoadServers}
+                disabled={isLoadingServers}
+                sx={{ 
+                  fontWeight: 600,
+                  px: 4,
+                  py: 1.5,
+                  borderColor: 'rgba(255,255,255,0.5)',
+                  '&:hover': {
+                    borderColor: 'white',
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                  }
+                }}
+              >
+                {isLoadingServers ? (
+                  <>
+                    <CircularProgress size={24} sx={{ mr: 1, color: 'white' }} />
+                    Loading...
+                  </>
+                ) : 'Load Servers'}
+              </Button>
+            </Tooltip>
+          </Box>
         </Container>
       </Box>
       
@@ -198,17 +297,11 @@ const HomePage: React.FC = () => {
                   label="Servers" 
                   isMobile={isMobile}
                 />
-                
-                <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
-                
                 <StatItem 
                   value={stats?.categoryCount || 0} 
                   label="Categories" 
                   isMobile={isMobile}
                 />
-                
-                <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
-                
                 <StatItem 
                   value={stats?.contributionCount || 0} 
                   label="Contributions" 
@@ -333,21 +426,15 @@ const HomePage: React.FC = () => {
   );
 };
 
-// Helper component for stats
+// StatItem component
 const StatItem: React.FC<{ value: number; label: string; isMobile: boolean }> = ({ value, label, isMobile }) => (
-  <Grid item xs={12} md={4}>
-    <Box sx={{ textAlign: 'center' }}>
-      <Typography 
-        variant={isMobile ? "h5" : "h4"} 
-        component="div" 
-        sx={{ fontWeight: 700, color: 'primary.main' }}
-      >
-        {value.toLocaleString()}
-      </Typography>
-      <Typography variant="body1" color="text.secondary">
-        {label}
-      </Typography>
-    </Box>
+  <Grid item xs={4} sm={4} md={4} textAlign="center">
+    <Typography variant={isMobile ? 'h5' : 'h4'} component="p" fontWeight="bold" color="primary">
+      {value}
+    </Typography>
+    <Typography variant="body1" color="textSecondary">
+      {label}
+    </Typography>
   </Grid>
 );
 

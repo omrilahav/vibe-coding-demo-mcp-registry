@@ -64,6 +64,20 @@ Or in case of an error:
 - `GET /search` - Search for servers
 - `GET /search/suggest` - Get search suggestions
 
+## Known API Issues
+
+### Glama.ai External API Integration
+
+There is a known issue with the Glama.ai API integration:
+
+- The endpoint at `/api/load-servers` attempts to fetch data from `https://glama.ai/api/mcp/v1/servers`
+- Currently, there are connectivity problems with this external service
+- This affects the ability to load server data from external sources
+- The application falls back to using local data when external data cannot be fetched
+- Future versions will implement additional data sources and more robust error handling
+
+If you're developing applications that interact with the MCP Registry API, it's recommended to handle potential failures gracefully when calling the `/api/load-servers` endpoint.
+
 ## Rate Limiting
 
 The API implements rate limiting to ensure fair usage:

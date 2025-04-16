@@ -3,9 +3,12 @@ import path from 'path';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { DataCollectionService } from './services/collection';
+import { PrismaClient } from '@prisma/client';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const dataCollectionService = new DataCollectionService();
 
 // Middleware
 app.use(express.json());
@@ -17,16 +20,60 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'MCP Registry API is running' });
 });
 
+// Add an endpoint to fetch servers from real sources
+app.post('/api/load-servers', async (req, res) => {
+  try {
+    // Start the collection process
+    console.log('Triggering MCP servers data collection...');
+    
+    await dataCollectionService.triggerCollection({
+      sources: ['glama.ai'] // For now, only use the Glama.ai source
+    });
+    
+    res.json({ 
+      status: 'success', 
+      message: 'Server data collection has been triggered. This process may take some time.' 
+    });
+  } catch (error) {
+    console.error('Error triggering data collection:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Failed to trigger server data collection.' 
+    });
+  }
+});
+
 // Get application stats
 app.get('/api/stats', async (req, res) => {
   try {
-    // For now, return mock data to bypass the database issues
+    // Connect to the database to get real stats
+    const prisma = new PrismaClient();
+    
+    // Get real counts from the database
+    const serverCount = await prisma.mCPServer.count();
+    const categoryCount = await prisma.category.count();
+    // Use a more appropriate value for contribution count
+    const contributionCount = await prisma.categoryToServer.count();
+    
+    // If no data yet, return mock data for initial state
+    if (serverCount === 0) {
+      res.json({ 
+        status: 'ok',
+        data: {
+          serverCount: 0,
+          categoryCount: 0,
+          contributionCount: 0
+        }
+      });
+      return;
+    }
+    
     res.json({ 
       status: 'ok',
       data: {
-        serverCount: 42,
-        categoryCount: 12,
-        contributionCount: 120
+        serverCount,
+        categoryCount,
+        contributionCount
       }
     });
   } catch (error) {
@@ -72,51 +119,83 @@ app.post('/api/servers', async (req, res) => {
   }
 });
 
-// Mock endpoint for fetching featured servers
+// Updated endpoint for fetching servers
 app.get('/api/servers/search', async (req, res) => {
   try {
-    // Return mock data for featured servers
+    const prisma = new PrismaClient();
+    const { q, categories, license, page = '1', limit = '10', sort = 'name' } = req.query;
+    
+    // Parse pagination parameters
+    const pageNumber = parseInt(page as string, 10) || 1;
+    const pageSize = parseInt(limit as string, 10) || 10;
+    const skip = (pageNumber - 1) * pageSize;
+    
+    // Build where conditions
+    const where: any = {};
+    
+    if (q) {
+      where.OR = [
+        { name: { contains: q as string, mode: 'insensitive' } },
+        { description: { contains: q as string, mode: 'insensitive' } }
+      ];
+    }
+    
+    if (categories) {
+      const categoryList = Array.isArray(categories) ? categories : [categories];
+      where.categories = {
+        some: {
+          category: {
+            name: {
+              in: categoryList as string[]
+            }
+          }
+        }
+      };
+    }
+    
+    if (license) {
+      where.license = { contains: license as string, mode: 'insensitive' };
+    }
+    
+    // Get servers from the database
+    const servers = await prisma.mCPServer.findMany({
+      where,
+      include: {
+        categories: {
+          include: {
+            category: true
+          }
+        }
+      },
+      skip,
+      take: pageSize,
+      orderBy: { 
+        [sort as string]: 'asc' 
+      }
+    });
+    
+    // Count total matching servers for pagination
+    const totalCount = await prisma.mCPServer.count({ where });
+    
+    // Format response to match the expected structure
+    const formattedServers = servers.map(server => ({
+      id: server.id,
+      name: server.name,
+      description: server.description,
+      reputationScore: 50, // Default score since we don't have real reputation scores yet
+      categories: server.categories.map(cs => ({ name: cs.category.name })),
+      lastUpdated: server.lastScannedAt ? server.lastScannedAt.toISOString().split('T')[0] : 'Unknown'
+    }));
+    
+    // If no servers found yet, return empty array
     res.json({ 
       status: 'ok',
-      data: [
-        {
-          id: "1",
-          name: "File System Access",
-          description: "Allows AI models to read and write files on the local system",
-          reputationScore: 92,
-          categories: [{ name: "File Access" }, { name: "System" }],
-          lastUpdated: "2023-04-01"
-        },
-        {
-          id: "2",
-          name: "Database Connector",
-          description: "Connect to SQL and NoSQL databases to query and manipulate data",
-          reputationScore: 88,
-          categories: [{ name: "Database" }, { name: "Data" }],
-          lastUpdated: "2023-03-15"
-        },
-        {
-          id: "3",
-          name: "HTTP Client",
-          description: "Make external API calls and web requests from AI contexts",
-          reputationScore: 95,
-          categories: [{ name: "Network" }, { name: "API" }],
-          lastUpdated: "2023-04-10"
-        },
-        {
-          id: "4",
-          name: "Image Processing",
-          description: "Analyze and modify images using computer vision techniques",
-          reputationScore: 84,
-          categories: [{ name: "Vision" }, { name: "Media" }],
-          lastUpdated: "2023-02-22"
-        }
-      ],
+      data: formattedServers,
       pagination: {
-        page: 1,
-        limit: 4,
-        totalCount: 4,
-        totalPages: 1
+        page: pageNumber,
+        limit: pageSize,
+        totalCount,
+        totalPages: Math.ceil(totalCount / pageSize)
       }
     });
   } catch (error) {
@@ -125,22 +204,29 @@ app.get('/api/servers/search', async (req, res) => {
   }
 });
 
-// Mock endpoint for fetching categories
+// Updated endpoint for fetching categories from the database
 app.get('/api/categories', async (req, res) => {
   try {
-    // Return mock data for categories
+    const prisma = new PrismaClient();
+    
+    // Get categories from the database
+    const categories = await prisma.category.findMany({
+      include: {
+        servers: true
+      }
+    });
+    
+    // Format response
+    const formattedCategories = categories.map(category => ({
+      id: category.id,
+      name: category.name,
+      count: category.servers.length
+    }));
+    
+    // If no categories yet, return empty array
     res.json({ 
       status: 'ok',
-      data: [
-        { id: "cat1", name: "File Access", count: 15 },
-        { id: "cat2", name: "Database", count: 22 },
-        { id: "cat3", name: "Network", count: 18 },
-        { id: "cat4", name: "API", count: 30 },
-        { id: "cat5", name: "Vision", count: 12 },
-        { id: "cat6", name: "Audio", count: 8 },
-        { id: "cat7", name: "Text", count: 20 },
-        { id: "cat8", name: "System", count: 25 }
-      ]
+      data: formattedCategories
     });
   } catch (error) {
     console.error('Error fetching categories:', error);
@@ -148,46 +234,48 @@ app.get('/api/categories', async (req, res) => {
   }
 });
 
-// Mock endpoint for server details
+// Updated endpoint for server details
 app.get('/api/servers/:id', async (req, res) => {
   try {
-    // Return mock data for a server
+    const prisma = new PrismaClient();
     const serverId = req.params.id;
     
-    // Simple mock database with a few servers
-    const mockServers: Record<string, any> = {
-      "1": {
-        id: "1",
-        name: "File System Access",
-        description: "Allows AI models to read and write files on the local system. This MCP server provides a secure interface for AI models to interact with local file systems, supporting read, write, and list operations. It includes permission controls and sandboxing for security.",
-        reputationScore: 92,
-        categories: [{ name: "File Access" }, { name: "System" }],
-        lastUpdated: "2023-04-01",
-        license: "MIT",
-        author: "OpenMCP Foundation",
-        githubUrl: "https://github.com/openmcp/file-system-mcp",
-        documentationUrl: "https://docs.openmcp.org/file-system"
-      },
-      "2": {
-        id: "2",
-        name: "Database Connector",
-        description: "Connect to SQL and NoSQL databases to query and manipulate data. This MCP server enables AI models to safely interact with various database systems, including MySQL, PostgreSQL, MongoDB, and Redis. It provides query building, connection pooling, and result formatting.",
-        reputationScore: 88,
-        categories: [{ name: "Database" }, { name: "Data" }],
-        lastUpdated: "2023-03-15",
-        license: "Apache-2.0",
-        author: "DataAI Labs",
-        githubUrl: "https://github.com/dataai/db-connector-mcp",
-        documentationUrl: "https://dataai.dev/docs/db-connector"
+    // Get server from database
+    const server = await prisma.mCPServer.findUnique({
+      where: { id: serverId },
+      include: {
+        categories: {
+          include: {
+            category: true
+          }
+        },
+        capabilities: true
       }
-    };
+    });
     
-    const server = mockServers[serverId];
     if (!server) {
       return res.status(404).json({ status: 'error', message: 'Server not found' });
     }
     
-    res.json({ status: 'ok', data: server });
+    // Format the response
+    const formattedServer = {
+      id: server.id,
+      name: server.name,
+      description: server.description,
+      reputationScore: 50, // Default score
+      categories: server.categories.map(cs => ({ name: cs.category.name })),
+      lastUpdated: server.lastScannedAt ? server.lastScannedAt.toISOString().split('T')[0] : 'Unknown',
+      license: server.license || 'Unknown',
+      author: server.owner || 'Unknown',
+      githubUrl: server.repositoryUrl || '',
+      documentationUrl: '',
+      capabilities: server.capabilities.map(cap => ({
+        name: cap.name,
+        description: cap.description
+      }))
+    };
+    
+    res.json({ status: 'ok', data: formattedServer });
   } catch (error) {
     console.error('Error fetching server details:', error);
     res.status(500).json({ status: 'error', message: 'Failed to fetch server details' });
@@ -377,6 +465,35 @@ app.get('/api/servers/:id/related', async (req, res) => {
   }
 });
 
+// Add an endpoint for testing the Glama API directly
+app.get('/api/test-glama', async (req, res) => {
+  try {
+    const axios = require('axios');
+    console.log('Testing Glama API directly...');
+    
+    // Use the curl example provided in the requirements
+    const url = 'https://glama.ai/api/mcp/v1/servers?first=20';
+    console.log(`Fetching from: ${url}`);
+    
+    const response = await axios.get(url);
+    console.log('Response status:', response.status);
+    console.log('Response data sample:', JSON.stringify(response.data).substring(0, 500) + '...');
+    
+    res.json({ 
+      status: 'success', 
+      message: 'Direct API test completed',
+      data: response.data
+    });
+  } catch (error: any) {
+    console.error('Error testing Glama API directly:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Failed to test Glama API directly',
+      error: error.message || 'Unknown error'
+    });
+  }
+});
+
 // Development mode - Serve a basic HTML page with info
 app.get('/', (req, res) => {
   res.send(`
@@ -432,9 +549,9 @@ if (process.env.NODE_ENV === 'production') {
 // Start Server Function
 export function startServer() {
   try {
-    console.log('Starting server with mock data...');
+    console.log('Starting server with real data collection capability...');
     
-    // Start the server without initializing other services
+    // Start the server 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT} - API available at http://localhost:${PORT}/api/health`);
       console.log(`For development UI, visit: http://localhost:3000`);

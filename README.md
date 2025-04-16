@@ -13,6 +13,17 @@ MCP Registry serves as a centralized directory for Model Context Protocol (MCP) 
 - **Search & Filter**: Easily search and filter servers based on various criteria
 - **Local Database**: All data is stored locally for offline access
 
+## Known Issues
+
+### Glama API Integration
+
+There is a known issue with the Glama API integration for fetching MCP servers:
+
+- The current implementation attempts to fetch data from the Glama.ai API endpoint, but there are connectivity problems with this external service.
+- This affects the "Load Latest Servers" functionality on the homepage.
+- Future versions will implement additional data sources and more robust error handling for external API dependencies.
+- For now, the application works with locally submitted and mock data.
+
 ## Technology Stack
 
 - **Frontend**: React, TypeScript, Material-UI

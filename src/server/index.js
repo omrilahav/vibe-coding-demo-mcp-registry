@@ -2,7 +2,7 @@
 
 // Import the startServer function from the actual server implementation
 // Using CommonJS require instead of ESM import
-const { startServer } = require('./server');
+import { startServer } from './server.js';
 
 // If this file is being run directly, start the server
 if (require.main === module) {

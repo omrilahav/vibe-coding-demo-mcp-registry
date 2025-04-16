@@ -37,6 +37,13 @@ const fetchWithErrorHandling = async (url: string, options?: RequestInit) => {
   }
 };
 
+// Trigger server data collection from external sources
+export const loadServersFromSources = async () => {
+  return fetchWithErrorHandling(`${API_BASE_URL}/load-servers`, {
+    method: 'POST'
+  });
+};
+
 // Stats and Metrics
 export const getStats = async () => {
   return fetchWithErrorHandling(`${API_BASE_URL}/stats`);
