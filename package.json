@@ -2,7 +2,7 @@
   "name": "mcp-registry",
   "version": "0.1.0",
   "description": "A local application that aggregates Model Context Protocol (MCP) servers into a searchable directory with reputation scoring",
-  "main": "dist/main/index.js",
+  "main": "wrapper.cjs",
   "type": "module",
   "scripts": {
     "start": "electron .",

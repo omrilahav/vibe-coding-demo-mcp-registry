@@ -1,7 +1,6 @@
 import { app, BrowserWindow, session } from 'electron';
 import * as path from 'path';
 import * as isDev from 'electron-is-dev';
-import { startServer } from '../server';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -46,14 +45,22 @@ function createWindow() {
   });
 }
 
-app.on('ready', () => {
-  // Start the Express server first
-  startServer();
-  
-  // Then create the Electron window
-  setTimeout(() => {
+app.on('ready', async () => {
+  try {
+    // Start the Express server first using dynamic import
+    const server = await import('../server');
+    server.startServer();
+    
+    // Then create the Electron window
+    setTimeout(() => {
+      createWindow();
+    }, 1000); // Small delay to ensure server is up
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    
+    // Create window anyway, even if server failed
     createWindow();
-  }, 1000); // Small delay to ensure server is up
+  }
 });
 
 app.on('window-all-closed', () => {

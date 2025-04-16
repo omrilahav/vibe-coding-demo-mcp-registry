@@ -31,6 +31,95 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'MCP Registry API is running' });
 });
 
+// Submit a new server
+app.post('/api/servers', async (req, res) => {
+  try {
+    console.log('POST /api/servers - Received data:', req.body);
+    const serverData = req.body;
+    
+    // Validate required fields
+    if (!serverData.name || !serverData.url || !serverData.description || 
+        !serverData.categories || !serverData.license) {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'Missing required fields. Please provide name, URL, description, categories, and license.' 
+      });
+    }
+    
+    // First, create the server without categories
+    const newServer = await prisma.mCPServer.create({
+      data: {
+        name: serverData.name,
+        url: serverData.url,
+        description: serverData.description,
+        license: serverData.license,
+        owner: serverData.author || 'Anonymous',
+        repositoryUrl: serverData.repositoryUrl || null,
+        isActive: true,
+        isVerified: false
+      }
+    });
+    
+    // Then handle categories
+    for (const categoryName of serverData.categories) {
+      // Find or create category
+      let category = await prisma.category.findFirst({
+        where: { name: categoryName }
+      });
+      
+      if (!category) {
+        category = await prisma.category.create({
+          data: { name: categoryName }
+        });
+      }
+      
+      // Create the relationship in the junction table
+      await prisma.categoryToServer.create({
+        data: {
+          serverId: newServer.id,
+          categoryId: category.id
+        }
+      });
+    }
+    
+    // Get the updated server with categories
+    const serverWithCategories = await prisma.mCPServer.findUnique({
+      where: { id: newServer.id },
+      include: {
+        categories: {
+          include: {
+            category: true
+          }
+        }
+      }
+    });
+    
+    res.status(201).json({ 
+      status: 'success', 
+      message: 'Server submitted successfully.',
+      data: {
+        id: newServer.id,
+        name: newServer.name,
+        url: newServer.url,
+        description: newServer.description,
+        categories: serverWithCategories.categories.map(c => c.category.name),
+        license: newServer.license,
+        submissionDate: newServer.createdAt,
+        status: newServer.isVerified ? 'verified' : 'pending'
+      }
+    });
+  } catch (error) {
+    console.error('Error submitting server:', error);
+    if (error.code) {
+      console.error('Error code:', error.code);
+    }
+    if (error.meta) {
+      console.error('Error meta:', error.meta);
+    }
+    res.status(500).json({ status: 'error', message: 'Failed to submit server.' });
+  }
+});
+
 // Get application stats
 app.get('/api/stats', async (req, res) => {
   try {

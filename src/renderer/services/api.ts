@@ -53,6 +53,22 @@ export const getServerById = async (id: string) => {
   return data.data;
 };
 
+// Submit a new server
+export const submitServer = async (server: {
+  name: string;
+  url: string;
+  description: string;
+  categories: string[];
+  license: string;
+  documentationUrl?: string;
+  notes?: string;
+}) => {
+  return fetchWithErrorHandling(`${API_BASE_URL}/servers`, {
+    method: 'POST',
+    body: JSON.stringify(server)
+  });
+};
+
 // Categories
 export const getCategories = async () => {
   const data = await fetchWithErrorHandling(`${API_BASE_URL}/categories`);

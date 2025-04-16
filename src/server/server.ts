@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001'] })); // Add CORS middleware with specific origins
+app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'] })); // Add CORS middleware with specific origins
 
 // API Routes
 app.get('/api/health', (req, res) => {
@@ -32,6 +32,43 @@ app.get('/api/stats', async (req, res) => {
   } catch (error) {
     console.error('Error fetching application stats:', error);
     res.status(500).json({ status: 'error', message: 'Failed to fetch application stats' });
+  }
+});
+
+// Add a new endpoint for submitting servers
+app.post('/api/servers', async (req, res) => {
+  try {
+    const serverData = req.body;
+    
+    // Validate required fields
+    if (!serverData.name || !serverData.url || !serverData.description || 
+        !serverData.categories || !serverData.license) {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'Missing required fields. Please provide name, URL, description, categories, and license.' 
+      });
+    }
+    
+    // Log the submission (for demonstration purposes)
+    console.log('Server submission received:', serverData);
+    
+    // In a real implementation, we would save to the database here
+    // For now, just simulate a successful submission
+    
+    // Return success response
+    res.status(201).json({ 
+      status: 'success', 
+      message: 'Server submitted successfully.',
+      data: {
+        id: 'new-' + Date.now(), // Generate a fake ID
+        ...serverData,
+        submissionDate: new Date().toISOString(),
+        status: 'pending'
+      }
+    });
+  } catch (error) {
+    console.error('Error submitting server:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to submit server.' });
   }
 });
 
@@ -188,6 +225,7 @@ app.get('/', (req, res) => {
           <li><div class="endpoint"><a href="/api/servers/search">/api/servers/search</a> - Search MCP servers</div></li>
           <li><div class="endpoint"><a href="/api/categories">/api/categories</a> - List available categories</div></li>
           <li><div class="endpoint"><a href="/api/servers/1">/api/servers/:id</a> - Get server details (try with id=1 or id=2)</div></li>
+          <li><div class="endpoint">POST /api/servers - Submit a new server</div></li>
         </ul>
       </body>
     </html>

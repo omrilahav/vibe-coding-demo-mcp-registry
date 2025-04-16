@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import ServersPage from './pages/ServersPage';
 import NotFoundPage from './pages/NotFoundPage';
+import SubmitServerPage from './pages/SubmitServerPage';
 
 // Placeholder for About page
 const AboutPage: React.FC = () => {
@@ -31,6 +32,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/servers" element={<ServersPage />} />
+            <Route path="/submit" element={<SubmitServerPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

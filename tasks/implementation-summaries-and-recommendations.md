@@ -616,4 +616,177 @@ This task implemented the homepage for the MCP Registry application, serving as 
 
 4. **Testing**:
    - Homepage components need unit and integration tests
-   - Add tests for API service layer and state management 
+   - Add tests for API service layer and state management
+
+## Task 08: Server Directory Implementation
+
+### What was implemented
+
+1. **Server Directory Page**:
+   - Created a comprehensive directory page with search, filtering, sorting, and pagination
+   - Implemented responsive UI that works across desktop, tablet, and mobile
+   - Added URL parameter handling for deep linking and bookmarking
+   
+2. **Filter Panel**:
+   - Developed a filter panel with category checkboxes, license type radio buttons, reputation score slider, and timeframe options
+   - Created collapsible/expandable filter drawer for mobile views
+   - Added a reset filters button to clear all filter selections
+   
+3. **Search and API Integration**:
+   - Connected the search bar to the search API
+   - Implemented filter state management that updates URL parameters
+   - Added loading, empty, and error states for better UX
+   
+4. **Results Display**:
+   - Created a responsive grid layout for server cards
+   - Implemented pagination with configurable items per page
+   - Added sorting functionality by different criteria
+   
+### Key Design Decisions
+
+1. **State Management**:
+   - Used React's built-in useState for state management
+   - Used URL parameters to preserve filter state for bookmarking and sharing
+   - Implemented controlled components for all filter inputs
+   
+2. **Responsive Design**:
+   - Created different layouts for desktop (side filter panel) and mobile (collapsible drawer)
+   - Used Material-UI grid system for responsive server card layout
+   - Implemented appropriate spacing and sizing for different screen sizes
+   
+3. **Performance Considerations**:
+   - Reset page to 1 when filter changes to avoid empty results
+   - Used debouncing for filter changes to prevent excessive API calls
+   - Implemented efficient re-rendering by using appropriate dependencies
+
+### Challenges and Solutions
+
+1. **Challenge**: Managing complex filter state
+   **Solution**: Used URL parameters to manage and persist filter state, making it easy to share search results
+
+2. **Challenge**: Creating a responsive UI for different screen sizes
+   **Solution**: Implemented a collapsible filter drawer for mobile and a side panel for desktop
+
+3. **Challenge**: Handling loading, empty, and error states
+   **Solution**: Created reusable components for these states to provide a consistent user experience
+
+### Recommendations for Future Tasks
+
+1. **Advanced Filtering**:
+   - Consider implementing more advanced filtering options, such as date ranges and specific capability filters
+   - Add the ability to save favorite filters or searches
+
+2. **Performance Enhancements**:
+   - Implement server-side caching for frequently used filter combinations
+   - Consider implementing virtualized scrolling for large result sets
+
+3. **Search Improvements**:
+   - Add typeahead suggestions for search queries
+   - Implement fuzzy searching for better results
+
+4. **UI Enhancements**:
+   - Add animations for filter changes and page transitions
+   - Implement a grid/list view toggle for different ways to view servers
+
+### Technical Debt to Address Later
+
+1. **State Management**:
+   - Consider moving to a more robust state management solution if the application grows
+   - Implement a better caching strategy for search results
+
+2. **Accessibility**:
+   - Enhance keyboard navigation and screen reader support
+   - Improve focus management in the filter panel
+
+3. **Testing**:
+   - Add comprehensive tests for all components and user interactions
+   - Implement visual regression tests for UI components 
+
+## Task 10: Submit Server Form Implementation
+
+### What was implemented
+
+1. **SubmitServerPage Component**:
+   - Created a new page component for server submissions
+   - Implemented a clean, user-friendly form layout
+   - Added appropriate field validations for required inputs
+   - Implemented success/error feedback for form submission
+   - Added responsive design for different screen sizes
+
+2. **Form Fields**:
+   - Implemented all required fields: name, URL, description, categories, license
+   - Added optional fields: documentation URL, additional notes
+   - Used existing UI components (TextInput, Select) for consistency
+   - Implemented multi-select for categories with clear visual feedback
+
+3. **Form Validation**:
+   - Added client-side validation with meaningful error messages
+   - Implemented URL format validation
+   - Created required field validation
+   - Added minimum length validation for name and description
+
+4. **API Integration**:
+   - Added submitServer function to the API service
+   - Implemented proper error handling for API responses
+   - Added loading states during submission
+   - Created success feedback and redirect after submission
+
+### Key Design Decisions
+
+1. **Component Reuse**:
+   - Leveraged existing UI components to maintain design consistency
+   - Used Material UI components for layout and styling
+   - Kept form state management simple with React's useState
+
+2. **Error Handling**:
+   - Implemented field-level error messages for clear user feedback
+   - Added proper API error handling
+   - Created a submit status alert for submission results
+
+3. **User Experience**:
+   - Added helper text for each field to guide users
+   - Used required field indicators (asterisks)
+   - Implemented loading state during form submission
+   - Added success message with automatic redirect
+
+### Challenges and Solutions
+
+1. **Multi-Select Implementation**:
+   - Challenge: Handling multi-select for categories
+   - Solution: Implemented specialized handlers for different input types
+
+2. **Type Safety**:
+   - Challenge: Ensuring type safety with different form field types
+   - Solution: Created specialized handlers for different form fields
+
+3. **Form Validation**:
+   - Challenge: Implementing comprehensive validation
+   - Solution: Combined field-level validation with form-level validation
+
+### Recommendations for Future Tasks
+
+1. **Form Persistence**:
+   - Consider implementing form data persistence to prevent data loss
+   - This could use localStorage or a more robust state management solution
+
+2. **Advanced Validation**:
+   - Add more sophisticated validation for URLs (checking if they exist)
+   - Implement server-side validation for better security
+
+3. **User Feedback Enhancement**:
+   - Consider adding a preview of the submitted server
+   - Implement form progress indicators for multi-step submissions
+
+### Technical Debt to Address Later
+
+1. **Form Library**:
+   - Current implementation uses basic React state
+   - Consider using a form library like Formik or React Hook Form for more complex forms
+
+2. **Category Search**:
+   - Current category selection could be improved with search functionality
+   - This would be important as the number of categories grows
+
+3. **URL Validation**:
+   - Current validation is basic and doesn't check if the URL actually exists
+   - Consider adding more advanced URL validation and checking 
