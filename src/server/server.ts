@@ -194,6 +194,189 @@ app.get('/api/servers/:id', async (req, res) => {
   }
 });
 
+// Mock endpoint for server reputation details
+app.get('/api/servers/:id/reputation', async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    
+    // Simple mock reputation data
+    const mockReputationData: Record<string, any> = {
+      "1": {
+        overall: 92,
+        components: {
+          security: 85,
+          documentation: 90,
+          communitySupport: 75,
+          reliability: 95,
+          maintenance: 80,
+          userFeedback: 88
+        },
+        lastUpdated: "2023-04-10"
+      },
+      "2": {
+        overall: 88,
+        components: {
+          security: 82,
+          documentation: 95,
+          communitySupport: 79,
+          reliability: 86,
+          maintenance: 85,
+          userFeedback: 80
+        },
+        lastUpdated: "2023-03-20"
+      }
+    };
+    
+    const reputationData = mockReputationData[serverId];
+    if (!reputationData) {
+      return res.status(404).json({ status: 'error', message: 'Reputation data not found' });
+    }
+    
+    res.json({ status: 'ok', data: reputationData });
+  } catch (error) {
+    console.error('Error fetching reputation details:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch reputation details' });
+  }
+});
+
+// Mock endpoint for server feedback
+app.get('/api/servers/:id/feedback', async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    
+    // Simple mock feedback data
+    const mockFeedbackData: Record<string, any> = {
+      "1": [
+        {
+          id: "f1",
+          userName: "AI Developer",
+          rating: 5,
+          comment: "This MCP server is excellent! It provides exactly what I need for secure file access.",
+          date: "2023-03-20"
+        },
+        {
+          id: "f2",
+          userName: "Data Scientist",
+          rating: 4,
+          comment: "Works great for most of my use cases, but could use better documentation for advanced features.",
+          date: "2023-02-15"
+        }
+      ],
+      "2": [
+        {
+          id: "f3",
+          userName: "Backend Engineer",
+          rating: 5,
+          comment: "Fantastic integration with multiple database systems. The connection pooling is very efficient.",
+          date: "2023-03-10"
+        },
+        {
+          id: "f4",
+          userName: "Full Stack Developer",
+          rating: 4,
+          comment: "Great for common queries, but could use more examples for complex joins and transactions.",
+          date: "2023-02-28"
+        }
+      ]
+    };
+    
+    const feedbackData = mockFeedbackData[serverId] || [];
+    
+    res.json({ status: 'ok', data: feedbackData });
+  } catch (error) {
+    console.error('Error fetching feedback:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch feedback' });
+  }
+});
+
+// Mock endpoint for submitting server feedback
+app.post('/api/servers/:id/feedback', async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const feedback = req.body;
+    
+    // Validate required fields
+    if (!feedback.userName || feedback.rating === undefined || !feedback.comment) {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'Missing required fields. Please provide userName, rating, and comment.' 
+      });
+    }
+    
+    // Log the feedback (for demonstration purposes)
+    console.log(`Received feedback for server ${serverId}:`, feedback);
+    
+    // In a real implementation, we would save to the database here
+    // Return success response with the created feedback
+    res.status(201).json({ 
+      status: 'success', 
+      message: 'Feedback submitted successfully.',
+      data: {
+        id: 'f' + Date.now(),
+        ...feedback,
+        date: new Date().toISOString().split('T')[0]
+      }
+    });
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to submit feedback' });
+  }
+});
+
+// Mock endpoint for related servers
+app.get('/api/servers/:id/related', async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    
+    // Simple mock related servers data
+    const mockRelatedServers: Record<string, any> = {
+      "1": [
+        {
+          id: "3",
+          name: "HTTP Client",
+          description: "Make external API calls and web requests from AI contexts",
+          reputationScore: 95,
+          categories: [{ name: "Network" }, { name: "API" }],
+          lastUpdated: "2023-04-10"
+        },
+        {
+          id: "4",
+          name: "Image Processing",
+          description: "Analyze and modify images using computer vision techniques",
+          reputationScore: 84,
+          categories: [{ name: "Vision" }, { name: "Media" }],
+          lastUpdated: "2023-02-22"
+        }
+      ],
+      "2": [
+        {
+          id: "3",
+          name: "HTTP Client",
+          description: "Make external API calls and web requests from AI contexts",
+          reputationScore: 95,
+          categories: [{ name: "Network" }, { name: "API" }],
+          lastUpdated: "2023-04-10"
+        },
+        {
+          id: "5",
+          name: "Data Visualization",
+          description: "Generate charts and visualizations from data in AI applications",
+          reputationScore: 89,
+          categories: [{ name: "Data" }, { name: "Visualization" }],
+          lastUpdated: "2023-03-05"
+        }
+      ]
+    };
+    
+    const relatedServers = mockRelatedServers[serverId] || [];
+    
+    res.json({ status: 'ok', data: relatedServers });
+  } catch (error) {
+    console.error('Error fetching related servers:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch related servers' });
+  }
+});
+
 // Development mode - Serve a basic HTML page with info
 app.get('/', (req, res) => {
   res.send(`
@@ -225,7 +408,11 @@ app.get('/', (req, res) => {
           <li><div class="endpoint"><a href="/api/servers/search">/api/servers/search</a> - Search MCP servers</div></li>
           <li><div class="endpoint"><a href="/api/categories">/api/categories</a> - List available categories</div></li>
           <li><div class="endpoint"><a href="/api/servers/1">/api/servers/:id</a> - Get server details (try with id=1 or id=2)</div></li>
+          <li><div class="endpoint"><a href="/api/servers/1/reputation">/api/servers/:id/reputation</a> - Get server reputation details</div></li>
+          <li><div class="endpoint"><a href="/api/servers/1/feedback">/api/servers/:id/feedback</a> - Get server feedback</div></li>
+          <li><div class="endpoint"><a href="/api/servers/1/related">/api/servers/:id/related</a> - Get related servers</div></li>
           <li><div class="endpoint">POST /api/servers - Submit a new server</div></li>
+          <li><div class="endpoint">POST /api/servers/:id/feedback - Submit feedback for a server</div></li>
         </ul>
       </body>
     </html>

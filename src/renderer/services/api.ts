@@ -53,6 +53,36 @@ export const getServerById = async (id: string) => {
   return data.data;
 };
 
+// Get server reputation details
+export const getServerReputation = async (id: string) => {
+  const data = await fetchWithErrorHandling(`${API_BASE_URL}/servers/${id}/reputation`);
+  return data.data;
+};
+
+// Get server feedback
+export const getServerFeedback = async (id: string) => {
+  const data = await fetchWithErrorHandling(`${API_BASE_URL}/servers/${id}/feedback`);
+  return data.data;
+};
+
+// Submit server feedback
+export const submitServerFeedback = async (id: string, feedback: {
+  userName: string;
+  rating: number;
+  comment: string;
+}) => {
+  return fetchWithErrorHandling(`${API_BASE_URL}/servers/${id}/feedback`, {
+    method: 'POST',
+    body: JSON.stringify(feedback)
+  });
+};
+
+// Get related servers
+export const getRelatedServers = async (id: string) => {
+  const data = await fetchWithErrorHandling(`${API_BASE_URL}/servers/${id}/related`);
+  return data.data;
+};
+
 // Submit a new server
 export const submitServer = async (server: {
   name: string;
@@ -72,7 +102,25 @@ export const submitServer = async (server: {
 // Categories
 export const getCategories = async () => {
   const data = await fetchWithErrorHandling(`${API_BASE_URL}/categories`);
-  return data.data;
+  // Ensure the data has the format expected by ServersPage
+  return data.data.map((cat: any) => {
+    // Handle both possible data formats
+    if (typeof cat === 'object' && cat !== null) {
+      // If it's already an object with id and name
+      return {
+        id: cat.id || `category-${cat.name}`,
+        name: cat.name,
+        count: cat.count
+      };
+    } else {
+      // If it's just a string, create a Category object
+      return {
+        id: `category-${cat}`,
+        name: String(cat),
+        count: 0
+      };
+    }
+  });
 };
 
 // Search

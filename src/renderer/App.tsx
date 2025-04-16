@@ -6,6 +6,8 @@ import HomePage from './pages/HomePage';
 import ServersPage from './pages/ServersPage';
 import NotFoundPage from './pages/NotFoundPage';
 import SubmitServerPage from './pages/SubmitServerPage';
+import ServerDetailPage from './pages/ServerDetailPage';
+import CategoriesPage from './pages/CategoriesPage';
 
 // Placeholder for About page
 const AboutPage: React.FC = () => {
@@ -32,6 +34,9 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/servers" element={<ServersPage />} />
+            <Route path="/servers/:id" element={<ServerDetailPage />} />
+            <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/categories/:categoryName" element={<CategoriesPage />} />
             <Route path="/submit" element={<SubmitServerPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<NotFoundPage />} />

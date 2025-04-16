@@ -65,9 +65,9 @@ const ServerCard: React.FC<ServerCardProps> = ({
         </Typography>
         
         <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5}>
-          {categories.slice(0, 3).map((category) => (
+          {categories.slice(0, 3).map((category, index) => (
             <CategoryTag 
-              key={category} 
+              key={`${category}-${index}`}
               category={category}
               disableLink={true} // Disable links to prevent nested <a> tags
               // Use a div instead of Link component to avoid nesting <a> tags

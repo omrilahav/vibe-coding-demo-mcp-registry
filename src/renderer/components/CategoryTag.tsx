@@ -14,12 +14,15 @@ const CategoryTag: React.FC<CategoryTagProps> = ({
   disableLink = false,
   ...props
 }) => {
+  // Ensure category is a string
+  const categoryString = typeof category === 'string' ? category : String(category);
+  
   if (clickable && !disableLink) {
     return (
       <Chip
         component={Link}
-        to={`/categories/${encodeURIComponent(category)}`}
-        label={category}
+        to={`/categories/${encodeURIComponent(categoryString)}`}
+        label={categoryString}
         size="small"
         sx={{
           bgcolor: 'neutral.lightGray',
@@ -37,7 +40,7 @@ const CategoryTag: React.FC<CategoryTagProps> = ({
 
   return (
     <Chip
-      label={category}
+      label={categoryString}
       size="small"
       sx={{
         bgcolor: 'neutral.lightGray',

@@ -39,9 +39,16 @@ interface Server {
   description: string;
   url: string;
   reputationScore: number;
-  categories: string[];
+  categories: Array<{name: string}> | string[];
   licenseType: string;
   lastUpdated: string;
+}
+
+// Add category interface
+interface Category {
+  id: string;
+  name: string;
+  count?: number;
 }
 
 interface SearchResponse {
@@ -104,7 +111,7 @@ const ServersPage: React.FC = () => {
   );
   
   // State for API data
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [servers, setServers] = useState<Server[]>([]);
   const [totalServers, setTotalServers] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -265,15 +272,15 @@ const ServersPage: React.FC = () => {
         {categories.length > 0 ? (
           categories.map(category => (
             <FormControlLabel
-              key={category}
+              key={category.id}
               control={
                 <Checkbox
-                  checked={selectedCategories.includes(category)}
-                  onChange={handleCategoryChange(category)}
+                  checked={selectedCategories.includes(category.name)}
+                  onChange={handleCategoryChange(category.name)}
                   size="small"
                 />
               }
-              label={<Typography variant="body2">{category}</Typography>}
+              label={category.name}
             />
           ))
         ) : (
@@ -464,7 +471,9 @@ const ServersPage: React.FC = () => {
                       name={server.name}
                       description={server.description}
                       reputation={server.reputationScore}
-                      categories={server.categories}
+                      categories={Array.isArray(server.categories) 
+                        ? server.categories.map(cat => typeof cat === 'object' && 'name' in cat ? cat.name : cat) 
+                        : []}
                     />
                   </Grid>
                 ))}
